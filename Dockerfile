@@ -35,4 +35,8 @@ RUN python -c "import torch, physicsnemo, makani; \
 from earth2studio.models.px import FCN, FCN3, SFNO, Pangu6, FuXi, DLWP; \
 print('PX IMPORT OK · torch', torch.__version__, '· physicsnemo', physicsnemo.__version__, '· makani+FCN3+SFNO import clean')"
 
+# Bake the runner scripts so a HEADLESS pod can run them via start-command (no SSH race).
+RUN mkdir -p /opt/valk
+COPY fcn_fleet.py valk_jax.py valk_mos_kde.py /opt/valk/
+
 WORKDIR /root
