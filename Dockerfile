@@ -27,6 +27,9 @@ RUN uv pip install --system \
       "earth2studio[fcn,pangu,fuxi,aurora,dlwp,sfno,fcn3,stormcast,dlesym,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
       onnxruntime-gpu "more_itertools>=10"
 
+# warp-lang>=1.5 removed `warp.context` which earth2studio imports -> pin to the last 1.4.x.
+RUN uv pip install --system 'warp-lang<1.5'
+
 # BUILD-TIME SMOKE TEST — fail the build (in free CI) if the makani fix didn't take.
 RUN python -c "import torch, physicsnemo, makani; \
 from earth2studio.models.px import FCN, FCN3, SFNO, Pangu6, FuXi, DLWP; \
