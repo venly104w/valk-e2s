@@ -17,9 +17,12 @@ RUN pip install -U uv ninja packaging setuptools wheel
 RUN pip install torch==2.5.0 torchvision==0.20.0 --index-url https://download.pytorch.org/whl/cu124
 RUN pip install ninja packaging
 
-# earth2studio[aifs] handles per-checkpoint anemoi-models + flash-attn. --no-build-isolation so flash-attn
-# sees the torch above. (Deterministic AIFS only — aifsens uses DIFFERENT pins, must not be mixed in.)
-RUN uv pip install --system --no-build-isolation \
+# earth2studio[aifs] handles per-checkpoint anemoi-models + flash-attn.
+# PER-PACKAGE no-build-isolation for flash-attn ONLY (so it sees the torch above) — a GLOBAL
+# --no-build-isolation breaks earth2studio's own hatchling/hatch-vcs source build (Gemini debate catch).
+RUN uv pip install --system \
+      --no-build-isolation-package flash-attn \
+      --no-build-isolation-package flash_attn \
       "earth2studio[aifs,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
       "more_itertools>=10"
 RUN uv pip install --system 'warp-lang<1.5'
