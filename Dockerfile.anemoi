@@ -13,16 +13,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install -U uv ninja packaging setuptools wheel
 
-# AIFS wants torch 2.5.x (per the runnable AIFS notebooks); flash-attn compiles against it.
+# AIFS wants torch 2.5.x (per the runnable AIFS notebooks).
 RUN pip install torch==2.5.0 torchvision==0.20.0 --index-url https://download.pytorch.org/whl/cu124
-RUN pip install ninja packaging
 
-# earth2studio[aifs] handles per-checkpoint anemoi-models + flash-attn.
-# PER-PACKAGE no-build-isolation for flash-attn ONLY (so it sees the torch above) — a GLOBAL
-# --no-build-isolation breaks earth2studio's own hatchling/hatch-vcs source build (Gemini debate catch).
+# flash-attn: install the PREBUILT cu12/torch2.5/cp311 wheel (no from-source compile = no CI rabbit hole:
+# no FORCE_BUILD, no nvcc time, no empty-extension trap). Then earth2studio[aifs] sees it satisfied.
+RUN pip install --no-deps \
+      "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.5cxx11abiFALSE-cp311-cp311-linux_x86_64.whl" \
+ && python -c "import flash_attn; print('flash-attn', flash_attn.__version__)"
+
+# earth2studio[aifs] — flash-attn already present, so it won't recompile. e2s builds in its own isolation.
 RUN uv pip install --system \
-      --no-build-isolation-package flash-attn \
-      --no-build-isolation-package flash_attn \
       "earth2studio[aifs,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
       "more_itertools>=10"
 RUN uv pip install --system 'warp-lang<1.5'
