@@ -30,13 +30,13 @@ RUN uv pip install --system \
 # warp-lang>=1.5 removed `warp.context` which earth2studio imports -> pin to the last 1.4.x.
 RUN uv pip install --system 'warp-lang<1.5'
 
-# ONNX FIX (squad found it, Gemini debate sharpened it): generic onnxruntime-gpu mismatches the pod CUDA and
-# throws "no data transfer registered Device:1->Device:0" / FusedMatMul on Pangu/FuXi/FengWu (CUDA EP never
-# loads). The Microsoft cu12 INDEX is unreliable here — `--extra-index-url` lets pip pick PyPI's higher
-# (broken) version instead. Pin the verified cu12.x/cudnn9 wheel directly from PyPI: onnxruntime-gpu==1.20.1.
+# ONNX FIX (build-smoke caught the real constraint): earth2studio 0.15.0 calls onnxruntime.preload_dlls()
+# which only exists in >=1.21, so 1.20.1 breaks the import. But the unpinned 1.26.0 is a CUDA-13 build →
+# the "no data transfer registered Device:1->Device:0" binding error on a CUDA-12 pod. The sweet spot:
+# onnxruntime-gpu==1.22.0 — verified CUDA-12 build (nvidia-cuda-runtime-cu12) AND has preload_dlls.
 RUN pip uninstall -y onnxruntime onnxruntime-gpu 2>/dev/null || true; \
-    pip install --force-reinstall --no-deps "onnxruntime-gpu==1.20.1" \
- && python -c "import onnxruntime as o; print('ONNX', o.__version__, '·', o.get_available_providers())"
+    pip install --force-reinstall --no-deps "onnxruntime-gpu==1.22.0" \
+ && python -c "import onnxruntime as o; print('ONNX', o.__version__, 'preload_dlls=', hasattr(o,'preload_dlls'))"
 
 # BUILD-TIME SMOKE TEST — fail the build (in free CI) if the makani fix didn't take.
 RUN python -c "import torch, physicsnemo, makani; \
