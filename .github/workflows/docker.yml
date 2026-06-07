@@ -8,8 +8,17 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # :1.0 already exists on GHCR — do NOT rebuild it. Build the two new slim containers.
+          - dockerfile: Dockerfile.jax
+            tag: jax
+          - dockerfile: Dockerfile.anemoi
+            tag: anemoi
     steps:
-      - name: free disk (pytorch-devel base is big)
+      - name: free disk
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
           sudo docker image prune -af || true
@@ -24,6 +33,9 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ matrix.dockerfile }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/valk-e2s:1.0
+          tags: ghcr.io/${{ github.repository_owner }}/valk-e2s:${{ matrix.tag }}
           provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

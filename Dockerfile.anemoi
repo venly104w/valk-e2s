@@ -1,0 +1,29 @@
+# CONTAINER C · anemoi-aifs — AIFS / AIFS-ENS. Needs IFS init (z = gh x 9.80665, handled in runner via FCN_DATA=IFS).
+# Fixes old "No module named torch_geometric / anemoi.utils" + missing-field errors.
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    EARTH2STUDIO_PACKAGE_TIMEOUT=1800 \
+    FORCE_CUDA_EXTENSION=1 \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git cmake build-essential ninja-build curl libeccodes-dev libeccodes-tools \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install -U uv ninja setuptools wheel packaging
+
+# earth2studio aifs + aifsens extras (SEPARATE — aifsens gives the AIFSENS class). uv honors uv.sources.
+RUN uv pip install --system \
+      "earth2studio[aifs,aifsens,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
+      "more_itertools>=10"
+# torch_geometric stack (AIFS GNN) — explicit so it's not silently skipped.
+RUN uv pip install --system torch_geometric
+RUN uv pip install --system 'warp-lang<1.5'
+
+# BUILD-TIME SMOKE — fail in free CI if the anemoi/AIFS classes aren't exposed.
+RUN python -c "import earth2studio.models.px as px; \
+names=[n for n in ('AIFS','AIFSENS') if hasattr(px,n)]; \
+assert names, 'no AIFS class exposed'; print('ANEMOI FLEET OK ·', names)"
+
+RUN mkdir -p /opt/valk
+COPY fcn_fleet.py /opt/valk/
+WORKDIR /root

@@ -1,0 +1,32 @@
+# CONTAINER B · e2s-jax — GraphCast / GenCast. SLIM (runtime base, no nvcc needed: jax ships precompiled).
+# Fixes the old "GraphCast not available" + "Dataset as data_vars" errors via the monolithic jax cuda wheel.
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    EARTH2STUDIO_PACKAGE_TIMEOUT=1800 \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git curl build-essential libeccodes-dev libeccodes-tools \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install -U uv
+
+# jax monolithic cuda12 wheel (avoids the PJRT split that broke GraphCast) — harness playbook pin.
+# NOTE: jax[cuda12]==0.4.28 does NOT exist (cuda12 extra came in 0.4.29) — use the explicit wheel.
+RUN pip install "jax==0.4.28" "jaxlib==0.4.28+cuda12.cudnn89" \
+      -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
+      "xarray==2024.3.0" "dm-haiku==0.0.10"
+
+# earth2studio jax extras — graphcast AND gencast are SEPARATE extras (verified pyproject 0.15.0).
+RUN uv pip install --system \
+      "earth2studio[graphcast,gencast,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
+      "more_itertools>=10"
+RUN uv pip install --system 'warp-lang<1.5'
+
+# BUILD-TIME SMOKE — fail in free CI if the jax extras didn't expose the model classes.
+RUN python -c "import earth2studio.models.px as px; \
+names=[n for n in ('GraphCastOperational','GraphCastSmall','GenCastMini') if hasattr(px,n)]; \
+assert names, 'no GraphCast/GenCast class exposed'; print('JAX FLEET OK ·', names)"
+
+RUN mkdir -p /opt/valk
+COPY fcn_fleet.py /opt/valk/
+WORKDIR /root
