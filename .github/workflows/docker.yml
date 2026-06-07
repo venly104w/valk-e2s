@@ -12,11 +12,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # :1.0 stays. Build :1.1 (root + onnx-cuda-12 fix → FuXi/FengWu/Pangu green) and :anemoi (AIFS).
-          - dockerfile: Dockerfile
-            tag: "1.1"
-          - dockerfile: Dockerfile.anemoi
-            tag: anemoi
+          # :1.0/:1.1/:anemoi already on GHCR. Build the NEW live-GFS engine.
+          - dockerfile: Dockerfile.aigfs
+            tag: aigfs
     steps:
       - name: free disk
         run: |

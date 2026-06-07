@@ -1,0 +1,31 @@
+# CONTAINER · ai-models-gfs — the LIVE-GFS engine (Delta-Force discovery keystone).
+# Runs GraphCast / FourCastNetv2 (+Pangu/Aurora) on LIVE NOAA GFS analysis for a real future date —
+# breaks the reanalysis wall. Distinct from the earth2studio image. Runner: aigfs_runner.py.
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git curl build-essential libeccodes-dev libeccodes-tools \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install -U uv pip
+
+# jax monolithic cu12 wheel (GraphCast backend) — same pin as the jax container
+RUN pip install "jax==0.4.28" "jaxlib==0.4.28+cuda12.cudnn89" \
+      -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
+      "dm-haiku==0.0.10" "xarray==2024.3.0"
+
+# the live-GFS runner + model plugins + GRIB tooling
+RUN pip install \
+      ai-models-gfs \
+      ai-models-graphcast-gfs \
+      ai-models-fourcastnetv2-gfs \
+      cfgrib eccodes ecmwflibs
+
+# BUILD SMOKE — CLI present + the gfs input driver imports (fail in free CI if the stack is broken)
+RUN ai-models-gfs --help >/dev/null 2>&1 && echo "ai-models-gfs CLI OK" || (echo "CLI MISSING"; exit 1)
+RUN python -c "import cfgrib, xarray, jax; print('GRIB+jax OK · jax', jax.__version__)"
+
+RUN mkdir -p /opt/valk
+COPY aigfs_runner.py fcn_fleet.py valk_jax.py valk_mos_kde.py /opt/valk/
+WORKDIR /root
