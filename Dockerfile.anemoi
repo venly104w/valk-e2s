@@ -1,29 +1,32 @@
-# CONTAINER C · anemoi-aifs — AIFS / AIFS-ENS. Needs IFS init (z = gh x 9.80665, handled in runner via FCN_DATA=IFS).
-# Fixes old "No module named torch_geometric / anemoi.utils" + missing-field errors.
+# CONTAINER C · anemoi-aifs — AIFS Single v1.0 (clean GO per Delta-Force squad).
+# Public CC-BY-4 weights (hf ecmwf/aifs-single-1.0). Live IC via ECMWF Open Data (handled in runner).
+# Squad-verified green path: torch 2.5 cu124 + flash-attn prereqs + earth2studio[aifs] --no-build-isolation.
 FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
 
 ENV DEBIAN_FRONTEND=noninteractive \
     EARTH2STUDIO_PACKAGE_TIMEOUT=1800 \
     FORCE_CUDA_EXTENSION=1 \
-    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    TORCH_CUDA_ARCH_LIST=8.6 \
+    MAX_JOBS=4
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git cmake build-essential ninja-build curl libeccodes-dev libeccodes-tools \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install -U uv ninja setuptools wheel packaging
+RUN pip install -U uv ninja packaging setuptools wheel
 
-# earth2studio aifs + aifsens extras (SEPARATE — aifsens gives the AIFSENS class). uv honors uv.sources.
-RUN uv pip install --system \
-      "earth2studio[aifs,aifsens,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
+# AIFS wants torch 2.5.x (per the runnable AIFS notebooks); flash-attn compiles against it.
+RUN pip install torch==2.5.0 torchvision==0.20.0 --index-url https://download.pytorch.org/whl/cu124
+RUN pip install ninja packaging
+
+# earth2studio[aifs] handles per-checkpoint anemoi-models + flash-attn. --no-build-isolation so flash-attn
+# sees the torch above. (Deterministic AIFS only — aifsens uses DIFFERENT pins, must not be mixed in.)
+RUN uv pip install --system --no-build-isolation \
+      "earth2studio[aifs,data]@git+https://github.com/NVIDIA/earth2studio.git@0.15.0" \
       "more_itertools>=10"
-# torch_geometric stack (AIFS GNN) — explicit so it's not silently skipped.
-RUN uv pip install --system torch_geometric
 RUN uv pip install --system 'warp-lang<1.5'
 
-# BUILD-TIME SMOKE — fail in free CI if the anemoi/AIFS classes aren't exposed.
-RUN python -c "import earth2studio.models.px as px; \
-names=[n for n in ('AIFS','AIFSENS') if hasattr(px,n)]; \
-assert names, 'no AIFS class exposed'; print('ANEMOI FLEET OK ·', names)"
+# BUILD-TIME SMOKE — fail in free CI if the AIFS class isn't exposed.
+RUN python -c "import earth2studio.models.px as px; assert hasattr(px,'AIFS'), 'no AIFS class'; print('AIFS OK')"
 
 RUN mkdir -p /opt/valk
-COPY fcn_fleet.py /opt/valk/
+COPY fcn_fleet.py valk_jax.py valk_mos_kde.py /opt/valk/
 WORKDIR /root

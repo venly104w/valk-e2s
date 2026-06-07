@@ -30,6 +30,14 @@ RUN uv pip install --system \
 # warp-lang>=1.5 removed `warp.context` which earth2studio imports -> pin to the last 1.4.x.
 RUN uv pip install --system 'warp-lang<1.5'
 
+# ONNX FIX (Delta-Force squad, verified): generic onnxruntime-gpu mismatches the pod CUDA and throws
+# "no data transfer registered Device:1->Device:0" / FusedMatMul on Pangu/FuXi/FengWu (CUDA EP never loads).
+# Swap to the CUDA-12-matched build from Microsoft's index so CUDAExecutionProvider actually registers.
+RUN pip uninstall -y onnxruntime onnxruntime-gpu 2>/dev/null || true; \
+    pip install onnx onnxruntime-gpu \
+      --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/ \
+ && python -c "import onnxruntime as o; print('ONNX', o.__version__, o.get_available_providers())"
+
 # BUILD-TIME SMOKE TEST — fail the build (in free CI) if the makani fix didn't take.
 RUN python -c "import torch, physicsnemo, makani; \
 from earth2studio.models.px import FCN, FCN3, SFNO, Pangu6, FuXi, DLWP; \
